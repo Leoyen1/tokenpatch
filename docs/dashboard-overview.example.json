@@ -1,0 +1,44 @@
+{
+  "schema_version": "2026-05-11.v1",
+  "token": "tp_user_demo_token",
+  "balance_credits": 42.75,
+  "generated_at": "2026-05-11T10:00:00+00:00",
+  "usage_7d": {
+    "window": "7d",
+    "calls": 18,
+    "input_tokens": 125000,
+    "output_tokens": 41200,
+    "total_tokens": 166200,
+    "charged_credits": 6.31,
+    "provider_cost": 4.2
+  },
+  "usage_30d": {
+    "window": "30d",
+    "calls": 71,
+    "input_tokens": 512000,
+    "output_tokens": 168500,
+    "total_tokens": 680500,
+    "charged_credits": 24.58,
+    "provider_cost": 16.39
+  },
+  "savings_estimate_7d": {
+    "window": "7d",
+    "baseline_strong_cost": 18.42,
+    "actual_charged_credits": 6.31,
+    "provider_cost": 4.2,
+    "savings_vs_charged": 12.11,
+    "savings_vs_provider": 14.22,
+    "savings_ratio_vs_charged": 65.74,
+    "savings_ratio_vs_provider": 77.2
+  },
+  "savings_estimate_30d": {
+    "window": "30d",
+    "baseline_strong_cost": 71.55,
+    "actual_charged_credits": 24.58,
+    "provider_cost": 16.39,
+    "savings_vs_charged": 46.97,
+    "savings_vs_provider": 55.16,
+    "savings_ratio_vs_charged": 65.65,
+    "savings_ratio_vs_provider": 77.09
+  }
+}

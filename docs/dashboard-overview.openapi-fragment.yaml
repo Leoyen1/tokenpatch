@@ -1,0 +1,162 @@
+openapi: 3.1.0
+info:
+  title: tokenpatch Dashboard Overview API Fragment
+  version: 2026-05-11.v1
+paths:
+  /v1/dashboard/overview:
+    get:
+      summary: Get dashboard overview for current user token
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Dashboard overview
+          headers:
+            X-TokenPatch-Schema-Version:
+              description: Dashboard schema version for compatibility gating
+              schema:
+                type: string
+                example: 2026-05-11.v1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardOverviewResponse"
+        "401":
+          description: Missing bearer token
+        "403":
+          description: Invalid gateway token
+  /v1/admin/accounts/{token}/dashboard/overview:
+    get:
+      summary: Get dashboard overview for a target account (admin)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Dashboard overview for target token
+          headers:
+            X-TokenPatch-Schema-Version:
+              description: Dashboard schema version for compatibility gating
+              schema:
+                type: string
+                example: 2026-05-11.v1
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardOverviewResponse"
+        "401":
+          description: Missing bearer token
+        "403":
+          description: Admin token required
+        "404":
+          description: Account not found
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    UsageSummaryResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - window
+        - calls
+        - input_tokens
+        - output_tokens
+        - total_tokens
+        - charged_credits
+        - provider_cost
+      properties:
+        window:
+          type: string
+          enum: [24h, 7d, 30d, all]
+        calls:
+          type: integer
+          minimum: 0
+        input_tokens:
+          type: integer
+          minimum: 0
+        output_tokens:
+          type: integer
+          minimum: 0
+        total_tokens:
+          type: integer
+          minimum: 0
+        charged_credits:
+          type: number
+          minimum: 0
+        provider_cost:
+          type: number
+          minimum: 0
+    SavingsEstimate:
+      type: object
+      additionalProperties: false
+      required:
+        - window
+        - baseline_strong_cost
+        - actual_charged_credits
+        - provider_cost
+        - savings_vs_charged
+        - savings_vs_provider
+        - savings_ratio_vs_charged
+        - savings_ratio_vs_provider
+      properties:
+        window:
+          type: string
+          enum: [7d, 30d]
+        baseline_strong_cost:
+          type: number
+          minimum: 0
+        actual_charged_credits:
+          type: number
+          minimum: 0
+        provider_cost:
+          type: number
+          minimum: 0
+        savings_vs_charged:
+          type: number
+        savings_vs_provider:
+          type: number
+        savings_ratio_vs_charged:
+          type: number
+        savings_ratio_vs_provider:
+          type: number
+    DashboardOverviewResponse:
+      type: object
+      additionalProperties: false
+      required:
+        - schema_version
+        - token
+        - balance_credits
+        - generated_at
+        - usage_7d
+        - usage_30d
+        - savings_estimate_7d
+        - savings_estimate_30d
+      properties:
+        schema_version:
+          type: string
+          example: 2026-05-11.v1
+        token:
+          type: string
+        balance_credits:
+          type: number
+          minimum: 0
+        generated_at:
+          type: string
+          format: date-time
+        usage_7d:
+          $ref: "#/components/schemas/UsageSummaryResponse"
+        usage_30d:
+          $ref: "#/components/schemas/UsageSummaryResponse"
+        savings_estimate_7d:
+          $ref: "#/components/schemas/SavingsEstimate"
+        savings_estimate_30d:
+          $ref: "#/components/schemas/SavingsEstimate"

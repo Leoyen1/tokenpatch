@@ -1,0 +1,38 @@
+{
+  "project_summary": "Small Python todo app with a list_todos helper and pytest coverage.",
+  "assumptions": [
+    "The completed filter should be optional so existing callers continue to receive all todos."
+  ],
+  "risks": [
+    "Changing the list_todos signature requires tests to cover backward compatibility."
+  ],
+  "tasks": [
+    {
+      "task_id": "task-001",
+      "title": "Add optional completed filter to list_todos",
+      "goal": "Allow callers to filter todos by completed status while preserving the existing default behavior.",
+      "context": "todo_app/todos.py exposes list_todos, and tests/test_todos.py covers current behavior.",
+      "allowed_files": [
+        "todo_app/todos.py",
+        "tests/test_todos.py"
+      ],
+      "forbidden_changes": [
+        "Package metadata",
+        "CLI or external services",
+        "Persistent storage"
+      ],
+      "acceptance_criteria": [
+        "Calling list_todos(todos) still returns all todos.",
+        "Calling list_todos(todos, completed=true) returns only completed todos.",
+        "Calling list_todos(todos, completed=false) returns only incomplete todos.",
+        "python -m pytest passes."
+      ],
+      "validation_commands": [
+        "python -m pytest"
+      ],
+      "complexity": "low",
+      "recommended_executor": "cheap",
+      "max_attempts": 2
+    }
+  ]
+}
