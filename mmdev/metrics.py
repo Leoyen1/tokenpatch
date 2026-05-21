@@ -8,9 +8,18 @@ from pathlib import Path
 import re
 import sqlite3
 
-from mmdev.reporter import read_run_events, summarize_auto_route_stats, summarize_strong_route_stats, summarize_usage_by_model_purpose
-from mmdev.schemas import ModelUsage
-from mmdev.state import state_path
+from mmdev.config import load_config
+from mmdev.cost import effective_baseline_rates, estimate_cost
+from mmdev.patch_economics import summarize_patch_economics
+from mmdev.reporter import (
+    read_optional_results,
+    read_run_events,
+    summarize_auto_route_stats,
+    summarize_strong_route_stats,
+    summarize_usage_by_model_purpose,
+)
+from mmdev.schemas import ModelUsage, ReviewResult, ValidationResult
+from mmdev.state import state_path, task_statuses
 from mmdev.usage import read_usage
 
 
@@ -25,6 +34,28 @@ def build_metrics(mmdev_dir: Path, window: str = "all") -> dict:
     total_cost = sum(record.estimated_cost for record in usage)
     total_credits = sum(record.charged_credits or 0 for record in usage)
     total_provider_cost = sum(record.provider_cost or 0 for record in usage)
+    config = load_config(mmdev_dir.parent)
+    baseline_input_rate, baseline_output_rate, baseline_uses_default = effective_baseline_rates(
+        config.baseline_strong_input_cost_per_million,
+        config.baseline_strong_output_cost_per_million,
+    )
+    baseline_cost = estimate_cost(
+        total_input,
+        total_output,
+        baseline_input_rate,
+        baseline_output_rate,
+    )
+    estimated_savings = baseline_cost - total_cost
+    savings_ratio = (estimated_savings / baseline_cost * 100.0) if baseline_cost > 0 else 0.0
+    statuses = task_statuses(mmdev_dir)
+    patch_economics = summarize_patch_economics(
+        total_tasks=len(statuses),
+        task_statuses=statuses,
+        validation_results=read_optional_results(mmdev_dir, "validation", ValidationResult),
+        review_results=read_optional_results(mmdev_dir, "review", ReviewResult),
+        actual_cost=total_cost,
+        baseline_cost=baseline_cost,
+    )
 
     normalized_window = (window or "all").strip().lower() or "all"
     return {
@@ -38,6 +69,12 @@ def build_metrics(mmdev_dir: Path, window: str = "all") -> dict:
             "input_tokens": total_input,
             "output_tokens": total_output,
             "estimated_cost": total_cost,
+            "baseline_cost": baseline_cost,
+            "estimated_savings": estimated_savings,
+            "savings_ratio": savings_ratio,
+            "baseline_input_cost_per_million": baseline_input_rate,
+            "baseline_output_cost_per_million": baseline_output_rate,
+            "baseline_uses_default": baseline_uses_default,
             "charged_credits": total_credits,
             "provider_cost": total_provider_cost,
             "calls_by_purpose": {
@@ -47,6 +84,7 @@ def build_metrics(mmdev_dir: Path, window: str = "all") -> dict:
                 "repair": usage_by_purpose.get("repair", 0),
             },
         },
+        "patch_economics": patch_economics,
         "usage_by_model_purpose": summarize_usage_by_model_purpose(usage),
         "strong_route_stats": summarize_strong_route_stats(run_events),
         "auto_route_stats": summarize_auto_route_stats(run_events),
@@ -174,6 +212,7 @@ def write_metrics_meta_csv(metrics: dict, csv_dir: Path, prefix: str | None = No
     path = csv_dir / f"{filename_prefix}meta.csv"
     summary = metrics.get("summary", {})
     calls_by_purpose = summary.get("calls_by_purpose", {})
+    patch_economics = metrics.get("patch_economics", {})
     row = {
         "exported_at": datetime.now(timezone.utc).isoformat(),
         "window_spec": metrics.get("window", {}).get("spec"),
@@ -192,6 +231,18 @@ def write_metrics_meta_csv(metrics: dict, csv_dir: Path, prefix: str | None = No
         "usage_rows": len(metrics.get("usage_by_model_purpose", []) or []),
         "strong_route_rows": len(metrics.get("strong_route_stats", []) or []),
         "auto_route_rows": len(metrics.get("auto_route_stats", []) or []),
+        "accepted_patches": patch_economics.get("accepted_patches", 0),
+        "applied_patches": patch_economics.get("applied_patches", 0),
+        "generated_patches": patch_economics.get("generated_patches", 0),
+        "failed_tasks": patch_economics.get("failed_tasks", 0),
+        "cost_per_accepted_patch": patch_economics.get("cost_per_accepted_patch", 0.0),
+        "cost_per_applied_patch": patch_economics.get("cost_per_applied_patch", 0.0),
+        "baseline_cost_per_accepted_patch": patch_economics.get("baseline_cost_per_accepted_patch", 0.0),
+        "baseline_cost_per_applied_patch": patch_economics.get("baseline_cost_per_applied_patch", 0.0),
+        "savings_per_accepted_patch": patch_economics.get("savings_per_accepted_patch", 0.0),
+        "savings_per_applied_patch": patch_economics.get("savings_per_applied_patch", 0.0),
+        "savings_ratio_per_accepted_patch": patch_economics.get("savings_ratio_per_accepted_patch", 0.0),
+        "savings_ratio_per_applied_patch": patch_economics.get("savings_ratio_per_applied_patch", 0.0),
     }
     columns = list(row.keys())
     with path.open("w", encoding="utf-8", newline="") as fh:

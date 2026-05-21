@@ -7,6 +7,7 @@ from pathlib import Path
 from mmdev.config import MMDevConfig
 from mmdev.cost import estimate_tokens
 from mmdev.json_utils import ModelJSONError, parse_model_json
+from mmdev.memory import memory_prompt_block
 from mmdev.models.base import CompletionClient
 from mmdev.schemas import ProjectPlan
 from mmdev.state import record_plan
@@ -39,6 +40,9 @@ def create_plan(requirement: str, config: MMDevConfig, client: CompletionClient)
         .replace("__REQUIREMENT__", requirement)
         .replace("__PROJECT_SUMMARY__", build_project_summary(config.workdir))
     )
+    memory = memory_prompt_block(config.mmdev_dir)
+    if memory:
+        prompt += "\n\n" + memory
     last_error: Exception | None = None
     for _ in range(2):
         started_at = time.perf_counter()

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "tokenpatch"
 version = "0.1.0"
-description = "TokenPatch local-first multi-model AI coding workflow CLI."
+description = "Save AI coding tokens without switching editors."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -18,15 +18,25 @@ dependencies = [
 test = [
   "pytest>=8",
 ]
-gateway = [
+web = [
   "fastapi>=0.115",
+  "jinja2>=3.1",
   "uvicorn>=0.30",
 ]
 
 [project.scripts]
 mmdev = "mmdev.cli:app"
+tp = "mmdev.cli:app"
 tokenpatch = "mmdev.cli:app"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+
+[tool.setuptools.packages.find]
+include = ["mmdev*"]
+exclude = ["mmdev_gateway*", "build*"]
+where = ["."]
+
+[tool.setuptools.package-data]
+mmdev = ["prompts/*.md", "templates/*.html"]

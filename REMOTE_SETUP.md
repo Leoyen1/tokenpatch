@@ -1,13 +1,13 @@
 # tokenpatch Remote Setup
 
-将本地 `tokenpatch` 仓库绑定到 GitHub：
+Bind the local `tokenpatch` repository to GitHub:
 
 ```bash
 git remote add origin https://github.com/<your-org-or-user>/tokenpatch.git
 git push -u origin main
 ```
 
-如果你使用 SSH：
+If you use SSH:
 
 ```bash
 git remote add origin git@github.com:<your-org-or-user>/tokenpatch.git

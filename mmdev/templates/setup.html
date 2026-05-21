@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>tokenpatch Setup</title>
+  <style>
+    body { margin: 0; font-family: Inter, Arial, sans-serif; background: #f5f6f8; color: #111827; }
+    .topbar { padding: 14px 20px; background: #111827; color: #fff; display: flex; justify-content: space-between; gap: 12px; }
+    .topbar a { color: #93c5fd; text-decoration: none; }
+    .wrap { padding: 16px; display: grid; gap: 16px; max-width: 980px; margin: 0 auto; }
+    .panel { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px; }
+    h1 { margin: 0 0 8px; font-size: 18px; }
+    h2 { margin: 0 0 10px; font-size: 16px; }
+    .meta, .hint { font-size: 13px; color: #4b5563; margin-bottom: 8px; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 12px; }
+    label { display: block; font-size: 12px; color: #374151; margin-bottom: 4px; }
+    input, select { width: 100%; box-sizing: border-box; border: 1px solid #d1d5db; border-radius: 6px; padding: 8px; font-size: 13px; }
+    button { border: 1px solid #1d4ed8; background: #1d4ed8; color: #fff; border-radius: 6px; padding: 8px 12px; cursor: pointer; font-size: 13px; }
+    button.secondary { border-color: #6b7280; background: #fff; color: #111827; }
+    .actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+    code { background: #f3f4f6; padding: 2px 4px; border-radius: 4px; }
+    pre { white-space: pre-wrap; background: #111827; color: #e5e7eb; border-radius: 8px; padding: 12px; font-size: 12px; max-height: 260px; overflow: auto; }
+    details { margin-top: 10px; }
+    summary { cursor: pointer; font-size: 14px; font-weight: 700; }
+    @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } .topbar { display: block; } }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div><strong>tokenpatch Setup</strong></div>
+    <div><a href="/">Console</a> &nbsp; <a href="/settings">Checks</a></div>
+  </div>
+  <div class="wrap">
+    <div class="panel">
+      <h1>One-time setup</h1>
+      <div class="meta">Global config: <code>{{ global_config_path }}</code></div>
+      <div class="hint">When used inside Codex, Claude Code, or Cursor, tokenpatch does not need your strong-model key. Configure only the low-cost executor here.</div>
+    </div>
+
+    <div class="panel">
+      <h2>Executor</h2>
+      <div class="grid">
+        <div>
+          <label>Executor Provider</label>
+          <select id="executor_provider">
+            <option value="deepseek_byok">DeepSeek BYOK</option>
+            <option value="mmdev_gateway">tokenpatch Gateway</option>
+          </select>
+        </div>
+        <div>
+          <label>DeepSeek Model</label>
+          <input id="deepseek_executor_model" value="{{ config.deepseek_executor_model }}">
+        </div>
+        <div>
+          <label>DeepSeek API Key</label>
+          <input id="deepseek_api_key" type="password" value="{{ config.deepseek_api_key }}">
+        </div>
+        <div>
+          <label>DeepSeek Base URL</label>
+          <input id="deepseek_base_url" value="{{ config.deepseek_base_url }}">
+        </div>
+        <div>
+          <label>Gateway URL</label>
+          <input id="mmdev_gateway_url" value="{{ config.mmdev_gateway_url }}">
+        </div>
+        <div>
+          <label>Gateway Token</label>
+          <input id="mmdev_gateway_token" type="password" value="{{ config.mmdev_gateway_token }}">
+        </div>
+      </div>
+
+      <details>
+        <summary>Standalone CLI/Web strong model settings (optional)</summary>
+        <div class="hint">Only fill these if you want tokenpatch CLI/Web to call OpenAI or Claude directly. MCP usage can leave them empty.</div>
+        <div class="grid">
+          <div>
+            <label>Strong Provider</label>
+            <select id="strong_model_provider">
+              <option value="openai">OpenAI compatible</option>
+              <option value="claude">Claude</option>
+            </select>
+          </div>
+          <div>
+            <label>OpenAI API Mode</label>
+            <select id="openai_api_mode">
+              <option value="responses">responses</option>
+              <option value="chat_completions">chat_completions</option>
+            </select>
+          </div>
+          <div><label>OpenAI API Key</label><input id="openai_api_key" type="password" value="{{ config.openai_api_key }}"></div>
+          <div><label>OpenAI Base URL</label><input id="openai_base_url" value="{{ config.openai_base_url }}"></div>
+          <div><label>Planner Model</label><input id="openai_planner_model" value="{{ config.openai_planner_model }}"></div>
+          <div><label>Reviewer Model</label><input id="openai_reviewer_model" value="{{ config.openai_reviewer_model }}"></div>
+          <div><label>Claude API Key</label><input id="claude_api_key" type="password" value="{{ config.claude_api_key }}"></div>
+          <div><label>Claude Base URL</label><input id="claude_base_url" value="{{ config.claude_base_url }}"></div>
+          <div><label>Claude Planner Model</label><input id="claude_planner_model" value="{{ config.claude_planner_model }}"></div>
+          <div><label>Claude Reviewer Model</label><input id="claude_reviewer_model" value="{{ config.claude_reviewer_model }}"></div>
+        </div>
+      </details>
+
+      <div class="actions">
+        <button type="button" onclick="saveConfig()">Save</button>
+        <button class="secondary" type="button" onclick="testConfig()">Save & Test</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Result</h2>
+      <pre id="result">Ready.</pre>
+    </div>
+  </div>
+
+  <script>
+    const initial = {{ config | tojson }};
+    for (const [key, value] of Object.entries(initial)) {
+      const el = document.getElementById(key);
+      if (el) el.value = value || "";
+    }
+    function payload() {
+      const ids = [
+        "strong_model_provider", "openai_api_key", "openai_base_url", "openai_api_mode",
+        "openai_planner_model", "openai_reviewer_model", "claude_api_key", "claude_base_url",
+        "claude_planner_model", "claude_reviewer_model", "executor_provider", "deepseek_api_key",
+        "deepseek_base_url", "deepseek_executor_model", "mmdev_gateway_url", "mmdev_gateway_token"
+      ];
+      const data = {};
+      for (const id of ids) data[id] = document.getElementById(id)?.value || "";
+      data.mmdev_gateway_executor_model = "gateway-executor";
+      return data;
+    }
+    async function postJSON(url) {
+      const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload()) });
+      const data = await res.json();
+      document.getElementById("result").textContent = JSON.stringify(data, null, 2);
+    }
+    function saveConfig() { postJSON("/api/setup"); }
+    function testConfig() { postJSON("/api/setup/test"); }
+  </script>
+</body>
+</html>

@@ -7,6 +7,7 @@ from pathlib import Path
 from mmdev.config import MMDevConfig
 from mmdev.git_utils import git_diff
 from mmdev.json_utils import ModelJSONError, parse_model_json
+from mmdev.memory import memory_prompt_block
 from mmdev.models.base import CompletionClient
 from mmdev.schemas import DevTask, ReviewResult, ValidationResult
 from mmdev.state import record_review
@@ -24,7 +25,7 @@ def review_task(task: DevTask, validation: ValidationResult, config: MMDevConfig
             raise ValueError("CLAUDE_REVIEWER_MODEL or claude_reviewer_model is required")
         raise ValueError("OPENAI_REVIEWER_MODEL or openai_reviewer_model is required")
     diff_text = git_diff(config.workdir, config.command_timeout_seconds)
-    prompt = build_reviewer_prompt(task, validation, diff_text, config.workdir)
+    prompt = build_reviewer_prompt(task, validation, diff_text, config.workdir, config.mmdev_dir)
     last_error: Exception | None = None
     for _ in range(2):
         started_at = time.perf_counter()
@@ -52,14 +53,25 @@ def review_task(task: DevTask, validation: ValidationResult, config: MMDevConfig
     raise ModelJSONError(f"reviewer returned invalid JSON twice: {last_error}")
 
 
-def build_reviewer_prompt(task: DevTask, validation: ValidationResult, diff_text: str, workdir: Path) -> str:
-    return (
+def build_reviewer_prompt(
+    task: DevTask,
+    validation: ValidationResult,
+    diff_text: str,
+    workdir: Path,
+    mmdev_dir: Path | None = None,
+) -> str:
+    prompt = (
         load_prompt()
         .replace("__TASK_JSON__", json.dumps(task.model_dump(), ensure_ascii=False, indent=2))
         .replace("__VALIDATION_JSON__", json.dumps(validation.model_dump(), ensure_ascii=False, indent=2))
         .replace("__GIT_DIFF__", diff_text)
         .replace("__FILE_SNIPPETS__", collect_reviewer_snippets(task, workdir))
     )
+    if mmdev_dir is not None:
+        memory = memory_prompt_block(mmdev_dir)
+        if memory:
+            prompt += "\n\n" + memory
+    return prompt
 
 
 def collect_reviewer_snippets(task: DevTask, workdir: Path, max_chars: int = 8000) -> str:

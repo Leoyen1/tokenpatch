@@ -10,9 +10,16 @@ venv/
 .env.*
 !.env.example
 
-# tokenpatch local runtime state (demo/sandbox)
+# tokenpatch local runtime state
+.mmdev/
 .mmdev-demo/
 .mmdev-gateway/
+.pytest_tmp/
+.pytest_tmp_release/
+.pytest_cache
+dist/
+build/
+*.egg-info/
 
 # OS / editor
 .DS_Store

@@ -8,7 +8,7 @@ from mmdev.models.base import CompletionResult
 class DeepSeekChatClient:
     def __init__(self, api_key: str, base_url: str) -> None:
         self.api_key = api_key
-        self.base_url = base_url.rstrip("/")
+        self.base_url = normalize_base_url(base_url)
 
     def complete(self, *, prompt: str, model: str, timeout_seconds: int) -> CompletionResult:
         response = httpx.post(
@@ -20,6 +20,7 @@ class DeepSeekChatClient:
             json={
                 "model": model,
                 "messages": [{"role": "user", "content": prompt}],
+                "thinking": {"type": "disabled"},
                 "response_format": {"type": "json_object"},
             },
             timeout=timeout_seconds,
@@ -37,3 +38,9 @@ class DeepSeekChatClient:
             output_tokens=usage.get("completion_tokens"),
         )
 
+
+def normalize_base_url(base_url: str) -> str:
+    normalized = base_url.rstrip("/")
+    if normalized.endswith("/v1"):
+        return normalized[:-3]
+    return normalized

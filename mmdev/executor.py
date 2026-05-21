@@ -7,10 +7,11 @@ from pathlib import Path
 from mmdev.config import MMDevConfig
 from mmdev.git_utils import GitError, apply_patch, is_git_project
 from mmdev.json_utils import ModelJSONError, parse_model_json
+from mmdev.memory import memory_prompt_block
 from mmdev.models.base import CompletionClient
 from mmdev.patcher import PatchSafetyError, assert_patch_within_allowed_files, save_patch
 from mmdev.schemas import DevTask, ExecutionResult, ExecutorModelOutput, ProjectPlan
-from mmdev.state import record_execution
+from mmdev.state import record_execution, record_execution_failure
 from mmdev.usage import append_usage, build_usage
 
 
@@ -35,13 +36,13 @@ def find_task(plan: ProjectPlan, task_id: str) -> DevTask:
 def execute_task(task: DevTask, config: MMDevConfig, client: CompletionClient, *, apply: bool = True) -> ExecutionResult:
     if task.complexity != "low" or task.recommended_executor != "cheap":
         raise ValueError("Phase 1-3 only supports low complexity tasks recommended for cheap executor")
-    executor_model = config.mmdev_gateway_executor_model if config.executor_provider == "mmdev_gateway" else config.deepseek_executor_model
+    executor_model = config.executor_model
     if not executor_model:
         raise ValueError("executor model is required")
     if apply and not is_git_project(config.workdir, config.command_timeout_seconds):
         raise GitError("mmdev run requires a Git project before applying patches")
 
-    prompt = build_executor_prompt(task, config.workdir)
+    prompt = build_executor_prompt(task, config.workdir, config.mmdev_dir)
     last_error: Exception | None = None
     output: ExecutorModelOutput | None = None
     for _ in range(2):
@@ -69,7 +70,9 @@ def execute_task(task: DevTask, config: MMDevConfig, client: CompletionClient, *
             last_error = exc
             prompt += "\n\nYour previous response failed schema validation. Return only corrected JSON."
     if output is None:
-        raise ModelJSONError(f"executor returned invalid JSON twice: {last_error}")
+        error = ModelJSONError(f"executor returned invalid JSON twice: {last_error}")
+        record_execution_failure(config.mmdev_dir, task, type(error).__name__, str(error))
+        raise error
     if output.needs_human_input:
         result = ExecutionResult(
             task_id=task.task_id,
@@ -82,13 +85,14 @@ def execute_task(task: DevTask, config: MMDevConfig, client: CompletionClient, *
         record_execution(config.mmdev_dir, task, result)
         return result
 
-    changed_files = assert_patch_within_allowed_files(output.patch, task.allowed_files)
-    patch_path = save_patch(config.mmdev_dir, task.task_id, output.patch)
-    if apply:
-        try:
+    try:
+        changed_files = assert_patch_within_allowed_files(output.patch, task.allowed_files)
+        patch_path = save_patch(config.mmdev_dir, task.task_id, output.patch)
+        if apply:
             apply_patch(config.workdir, patch_path, config.command_timeout_seconds)
-        except GitError:
-            raise
+    except (PatchSafetyError, GitError) as exc:
+        record_execution_failure(config.mmdev_dir, task, type(exc).__name__, str(exc))
+        raise
     result = ExecutionResult(
         task_id=task.task_id,
         changed_files=changed_files,
@@ -108,13 +112,18 @@ def display_patch_path(patch_path: Path, workdir: Path) -> str:
         return str(patch_path)
 
 
-def build_executor_prompt(task: DevTask, workdir: Path) -> str:
+def build_executor_prompt(task: DevTask, workdir: Path, mmdev_dir: Path | None = None) -> str:
     snippets = collect_allowed_file_snippets(task, workdir)
-    return (
+    prompt = (
         load_prompt()
         .replace("__TASK_JSON__", json.dumps(task.model_dump(), ensure_ascii=False, indent=2))
         .replace("__FILE_SNIPPETS__", snippets)
     )
+    if mmdev_dir is not None:
+        memory = memory_prompt_block(mmdev_dir)
+        if memory:
+            prompt += "\n\n" + memory
+    return prompt
 
 
 def collect_allowed_file_snippets(task: DevTask, workdir: Path, max_chars: int = 8000) -> str:

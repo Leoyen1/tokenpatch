@@ -3,6 +3,7 @@ from __future__ import annotations
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 
@@ -83,7 +84,13 @@ class FakeReviewer:
 
 
 def main() -> int:
-    demo_root = REPO_ROOT / ".mmdev-demo" / "todo-app"
+    public_demo_root = REPO_ROOT / ".mmdev-demo" / "todo-app"
+    demo_root = public_demo_root
+    if public_demo_root.exists():
+        try:
+            remove_demo_root(public_demo_root)
+        except PermissionError:
+            demo_root = REPO_ROOT / ".mmdev-demo" / f"todo-app-run-{int(time.time())}"
     if demo_root.exists():
         remove_demo_root(demo_root)
     shutil.copytree(
@@ -125,6 +132,8 @@ def main() -> int:
         print(result.model_dump_json(indent=2))
         raise RuntimeError("demo workflow did not produce an approved task")
     patch_path = export_worktree_diff(config, "task-001")
+    if demo_root != public_demo_root:
+        mirror_demo_outputs(demo_root, public_demo_root)
     print(result.model_dump_json(indent=2))
     print(f"Demo root: {demo_root}")
     print(f"Approved patch: {patch_path}")
@@ -173,6 +182,16 @@ def remove_demo_root(demo_root: Path) -> None:
             check=False,
         )
     shutil.rmtree(demo_root, onexc=make_writable)
+
+
+def mirror_demo_outputs(source_root: Path, public_root: Path) -> None:
+    for child in ("patches", "reports"):
+        src_dir = source_root / ".mmdev" / child
+        dst_dir = public_root / ".mmdev" / child
+        dst_dir.mkdir(parents=True, exist_ok=True)
+        for src in src_dir.glob("*"):
+            if src.is_file():
+                shutil.copy2(src, dst_dir / src.name)
 
 
 def make_writable(function, path, excinfo) -> None:

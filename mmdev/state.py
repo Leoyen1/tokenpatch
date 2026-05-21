@@ -136,6 +136,30 @@ def record_execution(mmdev_dir: Path, task: DevTask, result: ExecutionResult) ->
         conn.commit()
 
 
+def record_execution_failure(mmdev_dir: Path, task: DevTask, error_type: str, message: str) -> None:
+    result = {
+        "task_id": task.task_id,
+        "changed_files": [],
+        "patch_path": "",
+        "summary": message,
+        "known_risks": [error_type],
+        "needs_human_input": True,
+        "failed": True,
+        "error_type": error_type,
+    }
+    with connect(mmdev_dir) as conn:
+        upsert_task(conn, task, "execution-failed")
+        conn.execute(
+            """
+            insert into executions (task_id, result_json, updated_at)
+            values (?, ?, current_timestamp)
+            on conflict(task_id) do update set result_json=excluded.result_json, updated_at=current_timestamp
+            """,
+            (task.task_id, json.dumps(result, ensure_ascii=False)),
+        )
+        conn.commit()
+
+
 def record_validation(mmdev_dir: Path, result: ValidationResult) -> None:
     status = "validated" if result.passed else "validation-failed"
     with connect(mmdev_dir) as conn:

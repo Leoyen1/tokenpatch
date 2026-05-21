@@ -12,7 +12,7 @@ from mmdev.models.base import CompletionClient
 from mmdev.models.claude_client import ClaudeMessagesClient
 from mmdev.models.deepseek_client import DeepSeekChatClient
 from mmdev.models.gateway_client import MMDevGatewayClient
-from mmdev.models.openai_client import OpenAIResponsesClient
+from mmdev.models.openai_client import OpenAIChatCompletionsClient, OpenAIResponsesClient
 
 
 class DoctorCheck(BaseModel):
@@ -127,16 +127,18 @@ def check_strong_model_config(config: MMDevConfig) -> DoctorCheck:
 
 
 def check_executor_config(config: MMDevConfig) -> DoctorCheck:
-    if config.executor_provider == "mmdev_gateway":
+    provider = config.normalized_executor_provider
+    notes = " ".join(config.executor_provider_notes)
+    if provider == "mmdev_gateway":
         missing = []
         if not config.mmdev_gateway_url:
             missing.append("MMDEV_GATEWAY_URL")
         if not config.mmdev_gateway_token:
             missing.append("MMDEV_GATEWAY_TOKEN")
         if missing:
-            return DoctorCheck(name="executor-config", status="warn", message="missing: " + ", ".join(missing))
-        return DoctorCheck(name="executor-config", status="pass", message="tokenpatch gateway config present")
-    if config.executor_provider != "deepseek_byok":
+            return DoctorCheck(name="executor-config", status="warn", message="missing: " + ", ".join(missing) + f"; {notes}")
+        return DoctorCheck(name="executor-config", status="pass", message=f"tokenpatch gateway config present; {notes}")
+    if provider != "deepseek_byok":
         return DoctorCheck(name="executor-config", status="fail", message="unknown executor_provider")
     missing = []
     if not config.deepseek_api_key:
@@ -146,8 +148,8 @@ def check_executor_config(config: MMDevConfig) -> DoctorCheck:
     if not config.deepseek_executor_model:
         missing.append("DEEPSEEK_EXECUTOR_MODEL")
     if missing:
-        return DoctorCheck(name="executor-config", status="warn", message="missing: " + ", ".join(missing))
-    return DoctorCheck(name="executor-config", status="pass", message="DeepSeek BYOK executor config present")
+        return DoctorCheck(name="executor-config", status="warn", message="missing: " + ", ".join(missing) + f"; {notes}")
+    return DoctorCheck(name="executor-config", status="pass", message=f"DeepSeek BYOK executor config present; {notes}")
 
 
 def check_tasks(config: MMDevConfig) -> DoctorCheck:
@@ -179,7 +181,7 @@ def check_strong_model_api(config: MMDevConfig, client: CompletionClient | None 
     elif provider == "openai":
         if not config.openai_api_key or not config.openai_planner_model:
             return DoctorCheck(name="strong-model-api", status="warn", message="skipped; missing OPENAI_API_KEY or OPENAI_PLANNER_MODEL")
-        client = client or OpenAIResponsesClient(config.openai_api_key)
+        client = client or build_openai_client(config)
         model = config.openai_planner_model
     else:
         return DoctorCheck(name="strong-model-api", status="fail", message="unknown strong_model_provider")
@@ -192,7 +194,7 @@ def check_strong_model_api(config: MMDevConfig, client: CompletionClient | None 
 
 
 def check_executor_api(config: MMDevConfig, client: CompletionClient | None = None) -> DoctorCheck:
-    if config.executor_provider == "mmdev_gateway":
+    if config.normalized_executor_provider == "mmdev_gateway":
         if not config.mmdev_gateway_url or not config.mmdev_gateway_token:
             return DoctorCheck(name="executor-api", status="warn", message="skipped; missing gateway config")
         client = client or MMDevGatewayClient(
@@ -228,6 +230,15 @@ def check_json_completion(name: str, client: CompletionClient, model: str, timeo
         return DoctorCheck(name=name, status="fail", message=f"{model} returned JSON without ok=true")
     except Exception as exc:
         return DoctorCheck(name=name, status="fail", message=f"{model} check failed: {exc}")
+
+
+def build_openai_client(config: MMDevConfig) -> CompletionClient:
+    mode = (config.openai_api_mode or "responses").strip().lower()
+    if mode == "responses":
+        return OpenAIResponsesClient(config.openai_api_key or "", config.openai_base_url)
+    if mode == "chat_completions":
+        return OpenAIChatCompletionsClient(config.openai_api_key or "", config.openai_base_url)
+    raise ValueError("OPENAI_API_MODE/openai_api_mode must be 'responses' or 'chat_completions'")
 
 
 def format_doctor(result: DoctorResult) -> str:

@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>tokenpatch Web Console</title>
+  <style>
+    :root { color-scheme: light; }
+    body { margin: 0; font-family: Inter, Arial, sans-serif; background: #f5f6f8; color: #111827; }
+    .topbar { padding: 14px 20px; background: #111827; color: #fff; display: flex; justify-content: space-between; align-items: center; }
+    .topbar a { color: #93c5fd; text-decoration: none; }
+    .layout { display: grid; grid-template-columns: 1.2fr 1fr; gap: 16px; padding: 16px; }
+    .panel { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px; }
+    .panel h2 { margin: 0 0 10px; font-size: 16px; }
+    .meta { font-size: 13px; color: #4b5563; margin-bottom: 8px; }
+    textarea { width: 100%; min-height: 110px; resize: vertical; border: 1px solid #d1d5db; border-radius: 6px; padding: 10px; font-size: 13px; box-sizing: border-box; }
+    button { border: 1px solid #1d4ed8; background: #1d4ed8; color: #fff; border-radius: 6px; padding: 8px 12px; cursor: pointer; font-size: 13px; }
+    button.secondary { border-color: #6b7280; background: #fff; color: #111827; }
+    .actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    .status { margin-top: 10px; font-size: 13px; white-space: pre-wrap; }
+    .tasks { margin-top: 10px; display: grid; gap: 10px; }
+    .task { border: 1px solid #e5e7eb; border-radius: 6px; padding: 8px; }
+    .task-title { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+    .task-meta { font-size: 12px; color: #4b5563; margin-bottom: 4px; }
+    .task-files { font-size: 12px; color: #111827; }
+    pre { margin: 8px 0 0; padding: 10px; border-radius: 6px; background: #f9fafb; border: 1px solid #e5e7eb; font-size: 12px; overflow: auto; }
+    .summary-grid { display: grid; grid-template-columns: repeat(2, minmax(120px, 1fr)); gap: 8px; }
+    .kv { border: 1px solid #e5e7eb; border-radius: 6px; padding: 8px; background: #fff; }
+    .kv .k { font-size: 11px; color: #6b7280; }
+    .kv .v { font-size: 14px; font-weight: 600; margin-top: 3px; }
+    @media (max-width: 980px) { .layout { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div><strong>tokenpatch Web Console</strong> · local-first</div>
+    <div><a href="/onboarding">First Run</a> &nbsp; <a href="/settings">Settings & Checks</a></div>
+  </div>
+
+  <div class="layout">
+    <div class="panel">
+      <h2>Step 1 · Requirement</h2>
+      <div class="meta">Workdir: <code id="workdir">{{ workdir }}</code></div>
+      <div class="meta">Recommended executor for first run: <code>{{ default_executor }}</code></div>
+      <textarea id="requirementInput" placeholder="Describe your change requirement..."></textarea>
+      <div class="actions">
+        <button id="planBtn" type="button">Plan Tasks</button>
+        <button id="refreshBtn" class="secondary" type="button">Refresh State</button>
+      </div>
+      <div class="status" id="planStatus"></div>
+
+      <h2 style="margin-top:16px;">Step 2 · Tasks</h2>
+      <div class="tasks" id="tasks"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Step 3 · Report</h2>
+      <div class="actions">
+        <button id="reportBtn" type="button">Generate Report</button>
+      </div>
+      <div class="status" id="reportStatus"></div>
+      <div id="patchEconomics" class="summary-grid" style="margin-top:10px;"></div>
+      <div id="metricsSummary" class="summary-grid" style="margin-top:10px;"></div>
+      <pre id="reportPreview"></pre>
+
+      <h2 style="margin-top:16px;">Safe Mode</h2>
+      <div class="actions">
+        <button id="checkpointBtn" class="secondary" type="button">Create Restore Point</button>
+      </div>
+      <div class="status" id="checkpointStatus"></div>
+      <div class="tasks" id="checkpoints"></div>
+
+      <h2 style="margin-top:16px;">Memory Pack</h2>
+      <div class="actions">
+        <button id="memoryBtn" class="secondary" type="button">Refresh Memory</button>
+      </div>
+      <div class="status" id="memoryStatus"></div>
+      <pre id="memoryPreview"></pre>
+    </div>
+  </div>
+
+  <script>
+    async function fetchJSON(url, options = {}) {
+      const response = await fetch(url, options);
+      const payload = await response.json();
+      if (!response.ok || payload.ok === false) {
+        throw new Error(payload.error || payload.detail || "request failed");
+      }
+      return payload;
+    }
+
+    function setText(id, value) {
+      document.getElementById(id).textContent = value || "";
+    }
+
+    function renderMetrics(summary) {
+      const el = document.getElementById("metricsSummary");
+      el.innerHTML = "";
+      if (!summary) return;
+      const items = [
+        ["Model Calls", summary.model_calls],
+        ["Input Tokens", summary.input_tokens],
+        ["Output Tokens", summary.output_tokens],
+        ["Estimated Cost", summary.estimated_cost],
+        ["Charged Credits", summary.charged_credits],
+        ["Provider Cost", summary.provider_cost]
+      ];
+      for (const [k, v] of items) {
+        const box = document.createElement("div");
+        box.className = "kv";
+        box.innerHTML = `<div class="k">${k}</div><div class="v">${v ?? ""}</div>`;
+        el.appendChild(box);
+      }
+    }
+
+    function formatMoney(value) {
+      if (value === null || value === undefined || Number.isNaN(Number(value))) return "";
+      return Number(value).toFixed(6);
+    }
+
+    function formatPercent(value) {
+      if (value === null || value === undefined || Number.isNaN(Number(value))) return "";
+      return `${Number(value).toFixed(2)}%`;
+    }
+
+    function renderPatchEconomics(economics) {
+      const el = document.getElementById("patchEconomics");
+      el.innerHTML = "";
+      if (!economics) return;
+      const items = [
+        ["Savings Ratio", formatPercent(economics.estimated_savings_ratio)],
+        ["Estimated Savings", formatMoney(economics.estimated_savings)],
+        ["Generated Patches", economics.generated_patches],
+        ["Applied Patches", economics.applied_patches],
+        ["Accepted Patches", economics.accepted_patches],
+        ["Cost / Applied Patch", formatMoney(economics.cost_per_applied_patch)],
+        ["Savings / Applied Patch", formatMoney(economics.savings_per_applied_patch)],
+        ["Cost / Accepted Patch", formatMoney(economics.cost_per_accepted_patch)],
+        ["Savings / Accepted Patch", formatMoney(economics.savings_per_accepted_patch)],
+        ["Baseline / Applied Patch", formatMoney(economics.baseline_cost_per_applied_patch)]
+      ];
+      for (const [k, v] of items) {
+        const box = document.createElement("div");
+        box.className = "kv";
+        box.innerHTML = `<div class="k">${k}</div><div class="v">${v ?? ""}</div>`;
+        el.appendChild(box);
+      }
+    }
+
+    function renderTasks(plan) {
+      const tasksEl = document.getElementById("tasks");
+      tasksEl.innerHTML = "";
+      if (!plan || !Array.isArray(plan.tasks)) return;
+      for (const task of plan.tasks) {
+        const row = document.createElement("div");
+        row.className = "task";
+        row.innerHTML = `
+          <div class="task-title">${task.task_id} · ${task.title}</div>
+          <div class="task-meta">complexity=${task.complexity}, recommended=${task.recommended_executor}</div>
+          <div class="task-files">allowed_files: ${(task.allowed_files || []).join(", ")}</div>
+          <div class="actions" style="margin-top:8px;">
+            <button type="button" data-task="${task.task_id}">Run ${task.task_id}</button>
+          </div>
+          <pre id="run-${task.task_id}"></pre>
+        `;
+        tasksEl.appendChild(row);
+      }
+      for (const button of tasksEl.querySelectorAll("button[data-task]")) {
+        button.addEventListener("click", async (evt) => {
+          const taskId = evt.target.getAttribute("data-task");
+          const out = document.getElementById(`run-${taskId}`);
+          out.textContent = "Running...";
+          try {
+            const data = await fetchJSON(`/api/run/${taskId}`, { method: "POST" });
+            out.textContent = JSON.stringify(data, null, 2);
+            loadState();
+          } catch (err) {
+            out.textContent = String(err.message || err);
+          }
+        });
+      }
+    }
+
+    function renderCheckpoints(records) {
+      const el = document.getElementById("checkpoints");
+      el.innerHTML = "";
+      if (!Array.isArray(records) || records.length === 0) {
+        el.innerHTML = "<div class=\"meta\">No restore points yet.</div>";
+        return;
+      }
+      for (const record of records) {
+        const row = document.createElement("div");
+        row.className = "task";
+        row.innerHTML = `
+          <div class="task-title">${record.label}</div>
+          <div class="task-meta">${record.id}</div>
+          <div class="task-files">${record.status_summary}</div>
+        `;
+        el.appendChild(row);
+      }
+    }
+
+    async function loadState() {
+      try {
+        const data = await fetchJSON("/api/state");
+        renderTasks(data.plan);
+        renderMetrics(data.metrics_summary);
+        renderPatchEconomics(data.patch_economics);
+        renderCheckpoints(data.checkpoints);
+        if (data.memory && data.memory.preview) {
+          setText("memoryPreview", data.memory.preview);
+        }
+        if (data.report && data.report.preview) {
+          setText("reportPreview", data.report.preview);
+        }
+      } catch (err) {
+        setText("planStatus", `State load failed: ${err.message || err}`);
+      }
+    }
+
+    document.getElementById("planBtn").addEventListener("click", async () => {
+      const requirement = document.getElementById("requirementInput").value.trim();
+      if (!requirement) {
+        setText("planStatus", "Please input requirement.");
+        return;
+      }
+      setText("planStatus", "Planning...");
+      try {
+        const data = await fetchJSON("/api/plan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ requirement })
+        });
+        renderTasks(data.plan);
+        setText("planStatus", "Plan generated.");
+      } catch (err) {
+        setText("planStatus", String(err.message || err));
+      }
+    });
+
+    document.getElementById("reportBtn").addEventListener("click", async () => {
+      setText("reportStatus", "Generating report...");
+      try {
+        const data = await fetchJSON("/api/report", { method: "POST" });
+        setText("reportStatus", `Report written: ${data.report_path}`);
+        setText("reportPreview", data.report_text);
+        renderMetrics(data.metrics_summary);
+        renderPatchEconomics(data.patch_economics);
+      } catch (err) {
+        setText("reportStatus", String(err.message || err));
+      }
+    });
+
+    document.getElementById("checkpointBtn").addEventListener("click", async () => {
+      setText("checkpointStatus", "Creating restore point...");
+      try {
+        const data = await fetchJSON("/api/checkpoints", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ label: "manual-web" })
+        });
+        setText("checkpointStatus", `Created: ${data.checkpoint.id}`);
+        loadState();
+      } catch (err) {
+        setText("checkpointStatus", String(err.message || err));
+      }
+    });
+
+    document.getElementById("memoryBtn").addEventListener("click", async () => {
+      setText("memoryStatus", "Refreshing memory...");
+      try {
+        const data = await fetchJSON("/api/memory/refresh", { method: "POST" });
+        setText("memoryStatus", `Memory refreshed: ${data.memory.generated_at}`);
+        setText("memoryPreview", data.markdown);
+      } catch (err) {
+        setText("memoryStatus", String(err.message || err));
+      }
+    });
+
+    document.getElementById("refreshBtn").addEventListener("click", loadState);
+    loadState();
+  </script>
+</body>
+</html>

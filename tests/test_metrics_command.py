@@ -8,8 +8,8 @@ from typer.testing import CliRunner
 from mmdev.cli import app
 from mmdev.config import init_state_dir
 from mmdev.run_events import append_run_event
-from mmdev.schemas import ModelUsage
-from mmdev.state import state_path
+from mmdev.schemas import ModelUsage, ProjectPlan, ValidationResult
+from mmdev.state import record_plan, record_validation, state_path
 from mmdev.usage import append_usage
 
 
@@ -18,6 +18,36 @@ runner = CliRunner()
 
 def test_metrics_command_outputs_grouped_json(tmp_path):
     mmdev_dir = init_state_dir(tmp_path)
+    (mmdev_dir / "config.toml").write_text(
+        "baseline_strong_input_cost_per_million = 10.0\nbaseline_strong_output_cost_per_million = 20.0\n",
+        encoding="utf-8",
+    )
+    plan = ProjectPlan.model_validate(
+        {
+            "project_summary": "sample",
+            "assumptions": [],
+            "risks": [],
+            "tasks": [
+                {
+                    "task_id": "task-001",
+                    "title": "Change title",
+                    "goal": "Change title",
+                    "context": "",
+                    "allowed_files": ["index.html"],
+                    "forbidden_changes": [],
+                    "acceptance_criteria": ["Title changed"],
+                    "validation_commands": [],
+                    "complexity": "low",
+                    "recommended_executor": "cheap",
+                    "max_attempts": 2,
+                }
+            ],
+        }
+    )
+    record_plan(mmdev_dir, plan)
+    validation = ValidationResult(task_id="task-001", command_results=[], passed=True)
+    record_validation(mmdev_dir, validation)
+    (mmdev_dir / "reports" / "task-001-validation.json").write_text(validation.model_dump_json(), encoding="utf-8")
     append_usage(
         mmdev_dir,
         ModelUsage(
@@ -73,6 +103,16 @@ def test_metrics_command_outputs_grouped_json(tmp_path):
     assert payload["summary"]["run_events"] == 2
     assert payload["summary"]["calls_by_purpose"]["plan"] == 1
     assert payload["summary"]["calls_by_purpose"]["execute"] == 1
+    assert abs(payload["summary"]["baseline_cost"] - 0.0035) < 0.000001
+    assert abs(payload["summary"]["estimated_savings"] - (-0.1665)) < 0.000001
+    assert payload["summary"]["baseline_uses_default"] is False
+    assert payload["patch_economics"]["accepted_patches"] == 1
+    assert payload["patch_economics"]["applied_patches"] == 1
+    assert payload["patch_economics"]["generated_patches"] == 1
+    assert abs(payload["patch_economics"]["cost_per_accepted_patch"] - 0.17) < 0.000001
+    assert abs(payload["patch_economics"]["cost_per_applied_patch"] - 0.17) < 0.000001
+    assert abs(payload["patch_economics"]["baseline_cost_per_accepted_patch"] - 0.0035) < 0.000001
+    assert abs(payload["patch_economics"]["baseline_cost_per_applied_patch"] - 0.0035) < 0.000001
     assert payload["usage_by_model_purpose"][0]["purpose"] == "execute"
     assert payload["usage_by_model_purpose"][1]["purpose"] == "plan"
     assert payload["strong_route_stats"][0]["provider"] == "claude"
@@ -289,6 +329,12 @@ def test_metrics_command_can_write_meta_csv(tmp_path):
     assert rows[0]["window_spec"] == "all"
     assert rows[0]["model_calls"] == "1"
     assert rows[0]["calls_plan"] == "1"
+    assert rows[0]["accepted_patches"] == "0"
+    assert rows[0]["applied_patches"] == "0"
+    assert rows[0]["generated_patches"] == "0"
+    assert rows[0]["cost_per_accepted_patch"] == "0.0"
+    assert rows[0]["cost_per_applied_patch"] == "0.0"
+    assert rows[0]["savings_ratio_per_applied_patch"] == "0.0"
 
 
 def test_metrics_command_rejects_csv_meta_without_csv_dir(tmp_path):

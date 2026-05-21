@@ -114,6 +114,23 @@ def test_generate_report_summarizes_tasks_results_and_usage(tmp_path):
     assert "Estimated all-strong baseline cost: 3.000000" in report
     assert "Estimated savings vs all-strong: 2.000000" in report
     assert "Estimated savings ratio: 66.67%" in report
+    assert "## Savings Snapshot" in report
+    assert "tokenpatch actual cost: 1.000000" in report
+    assert "Estimated savings: 2.000000" in report
+    assert "Savings ratio per applied patch: 66.67%" in report
+    assert "Baseline pricing: configured baseline (input $10.000/1M, output $20.000/1M)" in report
+    assert "## Patch Economics" in report
+    assert "Accepted patches: 1" in report
+    assert "Applied patches: 1" in report
+    assert "Generated patches: 1" in report
+    assert "Actual cost per applied patch: 1.000000" in report
+    assert "Actual cost per accepted patch: 1.000000" in report
+    assert "All-strong baseline per applied patch: 3.000000" in report
+    assert "All-strong baseline per accepted patch: 3.000000" in report
+    assert "Savings per applied patch: 2.000000" in report
+    assert "Savings per accepted patch: 2.000000" in report
+    assert "Savings ratio per accepted patch: 66.67%" in report
+    assert "## Recovery and Context Support" in report
     assert "## Cost by Provider/Model" in report
     assert "- plan / planner: calls=1, input=100000, output=100000, cost=1.000000" in report
     assert "## Routing Success (from run-events.jsonl)" in report

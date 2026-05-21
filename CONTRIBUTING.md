@@ -5,7 +5,7 @@ Thanks for improving tokenpatch.
 ## Development Setup
 
 ```bash
-python -m pip install -e ".[test,gateway]"
+python -m pip install -e ".[test,web]"
 ```
 
 ## Basic Workflow
@@ -16,15 +16,14 @@ python -m pip install -e ".[test,gateway]"
 4. Run test suite before opening PR.
 
 ```bash
-python gateway/scripts/verify_dashboard_contract.py --json
 python -m pytest -q
 ```
 
 ## Commit and PR Expectations
 
 - Use clear commit messages with intent and scope.
-- Document any config/env changes in `README.md` or `gateway/README.md`.
-- For gateway security-sensitive changes, describe risk and mitigation in PR notes.
+- Document any config/env changes in `README.md` or `docs/`.
+- Hosted service and billing changes belong in the separate tokenpatch.com codebase.
 - For user-visible changes, update `CHANGELOG.md` under `[Unreleased]`.
 
 ## Release Notes

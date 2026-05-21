@@ -1,247 +1,309 @@
 # tokenpatch
 
-Local-first CLI for a multi-model AI coding workflow:
+Save AI coding tokens without switching editors.
 
-- strong model plans structured tasks
-- cheap executor model performs bounded low-risk implementation
-- generated patches are checked against `allowed_files` before `git apply`
-- task state and model usage are persisted in `.mmdev/state.sqlite`
+tokenpatch lets Codex, Cursor, Claude Code, CLI agents, and MCP clients keep their configured strong model in charge, then route safe implementation patches to a cheaper executor such as DeepSeek V4 Pro.
 
-This repository currently implements the local MVP flow from `multi-model-dev-agent-spec.md` for tokenpatch.
+The key metric is not just request cost. tokenpatch measures the cost per applied AI coding patch, then tracks accepted patches as the stricter validation/review signal.
 
-## Open-Source vs Hosted Boundary
+## Vision
 
-`tokenpatch` is intentionally split into two parts:
+AI coding should not require every implementation token to run through the most
+expensive frontier model. tokenpatch keeps the model you trust in charge of
+planning and judgment, while moving narrow implementation work to a lower-cost
+executor with local patch safety, recovery checkpoints, and visible savings.
 
-- Open-source: local CLI/App workflows, task protocol, patch safety checks, integration templates, and documentation in this repository.
-- Closed-source (or separately hosted): `tokenpatch.com` billing, balance ledger operations, payment/top-up operations, and production DeepSeek key management.
+The goal is simple: make serious AI coding cheaper without asking developers to
+switch editors, abandon their favorite agent, or give up control of their code.
 
-The local client supports two executor modes:
+The main workflow is intentionally simple:
 
-- `deepseek_byok`: user provides their own DeepSeek API key.
-- `mmdev_gateway`: user sends bounded executor tasks to your hosted gateway using a gateway token.
-
-In both modes, strong model planning/review can remain BYOK on user side (OpenAI or Claude).
-
-Project governance files:
-
-- [LICENSE](LICENSE)
-- [SECURITY.md](SECURITY.md)
-- [CONTRIBUTING.md](CONTRIBUTING.md)
-- [Changelog](CHANGELOG.md)
-- [AUP/ToS Summary](docs/AUP_TOS_SUMMARY.md)
-- [API Contract](docs/API_CONTRACT.md)
-- [Release Checklist](docs/RELEASE_CHECKLIST.md)
-
-## Install for development
-
-```bash
-python -m pip install -e ".[test]"
+```text
+Your coding app's strong model decides what should change.
+tokenpatch sends the bounded patch work to a low-cost executor.
+tokenpatch checks the patch, applies it locally, and reports what it cost.
 ```
 
-## CI Gate
+## Why It Exists
 
-GitHub Actions workflow `.github/workflows/tokenpatch-ci.yml` runs:
+AI coding gets expensive when every implementation token is spent on a frontier model. Most projects do not need the most expensive model to write every small diff. tokenpatch keeps the expensive model focused on judgment and uses a low-cost executor for narrow, file-scoped changes.
 
-- dashboard contract consistency check
-- repository test suite
-- `examples/todo-app` test
+What users see:
 
-Release workflow `.github/workflows/release.yml` runs on `v*` tags (or manual trigger):
+- one natural-language request inside the coding app they already use
+- a narrow `allowed_files` scope
+- lower-cost executor usage
+- savings ratio, cost per applied patch, usage, and accepted-patch reporting after the run
 
-- dashboard contract check
-- test suite
-- package build (`sdist` + `wheel`)
-- artifact upload
-- optional PyPI publish when `PYPI_API_TOKEN` is configured
+What tokenpatch handles automatically:
 
-## Commands
+- `allowed_files` is checked before any patch is applied.
+- A local recovery checkpoint is created before AI edits.
+- Compact project context reduces repeated exploration.
+- Metrics and reports track executor tokens, estimated cost, and savings.
+- No auto-commit, reset, checkout, or user-file deletion.
+
+## Works With
+
+- Codex App and Codex CLI
+- Claude Code
+- Cursor
+- VS Code / Cline / other MCP-capable agents
+- Terminal workflows and CI
+
+You can ask in any language. The docs, UI labels, metrics, and reports are English-first.
+
+## Install
+
+First public release is BYOK-first. Bring your own DeepSeek API key for the
+executor path. tokenpatch.com hosted credits are planned later for users who
+cannot easily get, recharge, or manage a DeepSeek key directly.
+
+```bash
+python -m pip install -e ".[test,web]"
+```
+
+See [Install Guide](docs/INSTALL.md) for PyPI, source, Codex, Cursor, Claude Code, Windows, and CLI setup.
+
+## App Quickstart
+
+For Codex App, Claude Code App, Cursor, or other GUI MCP clients:
+
+1. Bootstrap the current project.
+
+```bash
+tokenpatch bootstrap
+```
+
+This initializes `.mmdev`, installs app guidance for Codex, Claude Code, and Cursor, and prints a smoke-test prompt.
+
+2. If you use app-level MCP environment settings, add executor variables:
+
+```text
+MMDEV_EXECUTOR_PROVIDER=deepseek_byok
+DEEPSEEK_API_KEY=your-deepseek-key
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_EXECUTOR_MODEL=deepseek-v4-pro
+```
+
+Then ask naturally:
+
+```text
+tp: implement ... Only modify <files>.
+```
+
+Long-form requests like `Use tokenpatch to implement ...` still work.
+
+You can ask in any language. The app UI, docs, and structured reports are English-first, but tokenpatch preserves your original requirement text for the coding task.
+
+See [Quickstart](docs/QUICKSTART.md) for the full first-run flow and [FAQ](docs/FAQ.md) for common questions.
+
+## CLI/Web Quickstart
+
+For terminal, CLI agents, CI, or shared configuration across tools:
+
+```bash
+tokenpatch setup
+tokenpatch init
+tokenpatch doctor --api
+tokenpatch do "Add a status filter" --allowed-file src/orders.tsx
+```
+
+## CLI Commands
+
+Most users only need:
+
+```bash
+tokenpatch bootstrap
+tokenpatch do "Implement a small change" --allowed-file path/to/file
+tp do "Implement a small change" --allowed-file path/to/file
+tokenpatch metrics
+tp metrics
+tokenpatch report
+tp report
+```
+
+Advanced/debug commands:
 
 ```bash
 tokenpatch init
 tokenpatch status
 tokenpatch doctor
-tokenpatch metrics
-tokenpatch plan "为订单列表增加状态筛选"
+tokenpatch plan "Add a status filter to the order list"
 tokenpatch run task-001
-```
-
-Run `tokenpatch doctor` before real model calls to check local state, dependencies, Git/worktree support, model configuration, and task plan availability. It does not call external APIs unless explicitly requested:
-
-```bash
-tokenpatch doctor --api
-```
-
-`--api` sends minimal JSON smoke-test requests to the configured OpenAI planner model and DeepSeek executor model.
-
-Compatibility note: the legacy `mmdev` command is still available as an alias.
-
-Phase 4/5 commands now available:
-
-```bash
 tokenpatch validate task-001
 tokenpatch review task-001
 tokenpatch report
-tokenpatch auto "为订单列表增加状态筛选"
-```
-
-`auto` retries low-risk cheap-executor tasks up to each task's `max_attempts` when validation/review recommends `retry-cheap`. It stops on `ask-human` or `escalate-strong`; it does not automatically perform strong-model takeover.
-
-To avoid modifying the current worktree directly, run against a Git project with at least one commit:
-
-```bash
-tokenpatch auto --isolation worktree "为订单列表增加状态筛选"
-```
-
-Worktree isolation executes task changes under `.mmdev/worktrees/<task-id>` while writing reports and state back to the main `.mmdev` directory.
-
-Export an approved isolated result:
-
-```bash
+tokenpatch auto "Add a status filter to the order list"
 tokenpatch export task-001
+tokenpatch metrics --pretty
+tokenpatch checkpoint create "before refactor"
+tokenpatch checkpoint list
+tokenpatch checkpoint restore <checkpoint-id> --yes
+tokenpatch memory refresh
+tokenpatch memory show
+tokenpatch web
+tokenpatch mcp --workdir .
 ```
 
-This writes `.mmdev/patches/task-001-approved.patch` without modifying the main worktree. To apply it explicitly:
+Compatibility note: legacy `mmdev` command alias is still available.
 
-```bash
-tokenpatch export task-001 --apply
-```
+## Example Project
 
-## Example project
-
-Use `examples/todo-app` for an end-to-end demo target:
+Use `examples/todo-app`:
 
 ```bash
 cd examples/todo-app
 git init
 python -m pytest
 tokenpatch init
-tokenpatch auto --workdir examples/todo-app "为 todo 列表增加按 completed 状态筛选"
+tokenpatch auto --workdir examples/todo-app "Add a completed-status filter to the todo list"
 ```
 
-## Codex Skill
-
-The repository includes a project-local skill at `skills/multi-model-dev`. It documents the safe Codex workflow and includes a thin wrapper:
+Web demo path:
 
 ```bash
-python skills/multi-model-dev/scripts/mmdev.py status
+tokenpatch web --workdir examples/todo-app
 ```
 
-## Multi-Entry Integration
-
-`tokenpatch` can be integrated through configuration-first flows before any dedicated plugin work.  
-See integration playbooks for Codex, Claude Code, Cursor, VS Code, and Cline/Hermes:
-
-- [Integration Guide](docs/INTEGRATIONS.md)
+Then perform: requirement -> run -> report.
 
 ## Configuration
 
-Run `tokenpatch init` to create `.mmdev/config.toml`, then set values there or through environment variables. Environment variables take precedence:
+GUI apps should use their MCP server settings for executor environment variables. CLI and terminal workflows can use `tokenpatch setup` to configure the low-cost executor once.
+When tokenpatch is used through Codex, Claude Code, or Cursor MCP, those tools keep using their own strong-model configuration; tokenpatch only needs executor credentials.
 
-- `OPENAI_API_KEY`
-- `OPENAI_PLANNER_MODEL`
-- `OPENAI_REVIEWER_MODEL`
-- `CLAUDE_API_KEY`
-- `CLAUDE_BASE_URL`
-- `CLAUDE_PLANNER_MODEL`
-- `CLAUDE_REVIEWER_MODEL`
+The setup page writes:
+
+```text
+~/.tokenpatch/config.toml
+```
+
+New projects only need:
+
+```bash
+tokenpatch init
+```
+
+Config priority is: environment variables > project `.mmdev/config.toml` > global `~/.tokenpatch/config.toml`.
+
+Executor provider selection:
+
+1. Explicit `MMDEV_EXECUTOR_PROVIDER` / `executor_provider`
+2. Gateway token present -> `mmdev_gateway`
+3. DeepSeek key present -> `deepseek_byok`
+4. Otherwise defaults to `deepseek_byok` and asks for executor credentials
+
+If both a gateway token and a DeepSeek key are configured, the explicit provider wins. `tokenpatch status` and `tokenpatch doctor` show the active provider, why it was selected, and which credentials are ignored.
+
+Key env vars:
+
 - `MMDEV_STRONG_MODEL_PROVIDER`
-- `DEEPSEEK_API_KEY`
-- `DEEPSEEK_BASE_URL`
-- `DEEPSEEK_EXECUTOR_MODEL`
-- `MMDEV_WORKDIR`
+- `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_API_MODE`, `OPENAI_PLANNER_MODEL`, `OPENAI_REVIEWER_MODEL`
+- `CLAUDE_API_KEY`, `CLAUDE_BASE_URL`, `CLAUDE_PLANNER_MODEL`, `CLAUDE_REVIEWER_MODEL`
 - `MMDEV_EXECUTOR_PROVIDER`
-- `MMDEV_GATEWAY_URL`
-- `MMDEV_GATEWAY_TOKEN`
-- `MMDEV_GATEWAY_COUNTRY`
-- `MMDEV_GATEWAY_ENTITY`
-- `MMDEV_GATEWAY_POLICY_PATH`
+- `DEEPSEEK_API_KEY`, `DEEPSEEK_BASE_URL`, `DEEPSEEK_EXECUTOR_MODEL`
+- `MMDEV_GATEWAY_URL`, `MMDEV_GATEWAY_TOKEN`, `MMDEV_GATEWAY_EXECUTOR_MODEL`
+- `MMDEV_GATEWAY_COUNTRY`, `MMDEV_GATEWAY_ENTITY`
+- `MMDEV_WORKDIR`
 
-Model names are not hardcoded; commands that need a model fail clearly if it is missing.
+For OpenAI-compatible relay services such as cc switch, set `OPENAI_BASE_URL`
+to the relay `/v1` endpoint. Keep `OPENAI_API_MODE=responses` if the relay
+supports `/v1/responses`; otherwise use `OPENAI_API_MODE=chat_completions`.
 
-Strong model provider supports OpenAI and Claude BYOK:
+## Open-Source vs Hosted Boundary
 
-```toml
-strong_model_provider = "openai" # or "claude"
+This repository is the open-source client and workflow layer.
 
-# OpenAI mode
-openai_api_key = ""
-openai_planner_model = ""
-openai_reviewer_model = ""
+- Open-source: local CLI/Web workflows, MCP integration, patch safety, examples, docs, and public protocol contracts.
+- Hosted/closed: future tokenpatch.com billing, production key management,
+  credit balances, manual top-ups, and operational dashboards.
+- The first GitHub release is BYOK-first. tokenpatch.com and hosted credits are
+  private beta / invite-only and may not be publicly online yet.
+- The planned hosted path is for users who cannot easily get, recharge, or
+  manage a DeepSeek API key themselves. It is a convenience layer, not a
+  requirement for using tokenpatch.
 
-# Claude mode
-claude_api_key = ""
-claude_base_url = "https://api.anthropic.com/v1"
-claude_planner_model = ""
-claude_reviewer_model = ""
-```
+Execution modes:
 
-Executor supports two modes:
+- `deepseek_byok` for user-owned DeepSeek keys
+- `mmdev_gateway` for future hosted executor tokens / private beta
 
-```toml
-executor_provider = "deepseek_byok"
-deepseek_api_key = ""
-deepseek_base_url = "https://api.deepseek.com/v1"
-deepseek_executor_model = ""
-```
+Strong model planning and review remain BYOK through OpenAI or Claude.
 
-or:
+## Integrations
 
-```toml
-executor_provider = "mmdev_gateway"
-mmdev_gateway_url = "https://api.yourdomain.com"
-mmdev_gateway_token = ""
-mmdev_gateway_executor_model = "gateway-executor"
-mmdev_gateway_country = "SG" # optional
-mmdev_gateway_entity = "tenant-001" # optional
-```
+- [Install Guide](docs/INSTALL.md)
+- [Quickstart](docs/QUICKSTART.md)
+- [Savings Estimates](docs/SAVINGS.md)
+- [MVP Test Report](docs/TEST_REPORT.md)
+- [GitHub Publication Review](docs/GITHUB_PUBLICATION.md)
+- [Public Release Manifest](docs/PUBLIC_RELEASE_MANIFEST.md)
+- [MCP Client Setup](docs/MCP_CLIENTS.md)
+- [Integration Guide](docs/INTEGRATIONS.md)
+- [FAQ](docs/FAQ.md)
 
-Gateway mode sends only bounded executor tasks to `/v1/executor/run`; planner/reviewer keys remain local.
-
-## Hosted Gateway Reference
-
-This repository includes a reference server under `gateway/` for the hosted executor model. It is a starting point for a separate closed or independently deployed service:
+Use MCP or app rules when you want Codex, Claude Code, Cursor, or another agent to call tokenpatch without changing your editor:
 
 ```bash
-python -m pip install -e ".[gateway]"
-uvicorn gateway.mmdev_gateway.app:app --host 127.0.0.1 --port 8080
+tokenpatch bootstrap
 ```
 
-The reference gateway implements bearer-token auth, SQLite-backed account/usage storage, structured `/v1/executor/run`, usage/balance queries, admin freeze controls, and manual top-up audit ledger endpoints. Replace demo operations and fake executor behavior before production.
+After that, ask naturally: `tp: implement ... Only modify <files>.`
 
-Optional cost estimation fields in `.mmdev/config.toml` use cost units per 1M tokens:
+The `tp:` prefix is the shortest app trigger. The `tp` terminal command is the
+short CLI alias for `tokenpatch`.
 
-```toml
-planner_input_cost_per_million = 0.0
-planner_output_cost_per_million = 0.0
-reviewer_input_cost_per_million = 0.0
-reviewer_output_cost_per_million = 0.0
-executor_input_cost_per_million = 0.0
-executor_output_cost_per_million = 0.0
-baseline_strong_input_cost_per_million = 0.0
-baseline_strong_output_cost_per_million = 0.0
-```
+## Cost And Savings
 
-When set, `model-usage.jsonl`, `state.sqlite`, and `final-report.md` include estimated costs.
-The baseline fields estimate what the same token volume would have cost if every call used a strong model, allowing the report to show estimated savings.
+tokenpatch saves money primarily by delegating safe implementation patches to a cheaper executor while the strong model stays in charge of judgment. Its reports focus on task-level economics: how much a useful applied patch cost, whether it became an accepted patch after validation/review, and how that compares with an all-strong-model baseline.
 
-CLI run metadata is also recorded in:
+Report highlights include:
 
-- `.mmdev/logs/run-events.jsonl`
+- estimated savings ratio as the first-glance "did this save money?" signal
+- applied patches, so users can see that a bounded edit really landed even before formal review
+- accepted patches and generated patches
+- cost per applied patch for the immediate "what did this useful change cost?" moment
+- actual cost per accepted patch for stricter validation/review workflows
+- all-strong baseline cost per applied and accepted patch
+- estimated savings per applied and accepted patch
+- route success, retries, and model usage by purpose
 
-Each line includes timestamped route metadata (for example strong model provider/model, executor provider/model, task id, and requirement length) to support cost audit and troubleshooting.
-CLI writes both `*.start` and `*.finish` events; `finish` includes `outcome` (`success` or `error`) for report-side route success aggregation.
+Safe Mode and Memory Pack are supporting mechanisms:
 
-Export machine-readable aggregates:
+- Safe Mode creates restore points before AI edits, so failed runs do not require long strong-model debugging sessions to recover the project.
+- Memory Pack stores deterministic project/task summaries locally, so prompts can reuse compact context instead of repeatedly explaining the same codebase.
+
+Estimate from usage log:
 
 ```bash
-tokenpatch metrics --pretty
+python scripts/estimate_savings.py --usage-file .mmdev/reports/model-usage.jsonl --scenario both --cache-hit-ratio 0.0 --pretty
 ```
 
-Use `--compact` for one-line JSON output.
-Use `--out <file>` to write JSON directly to a file.
-Use `--window 24h|7d|30d` (or `all`) for time-windowed aggregates.
-Use `--csv-dir <dir>` to export grouped CSV files (`usage_by_model_purpose.csv`, `strong_route_stats.csv`, `auto_route_stats.csv`).
-Use `--csv-prefix <name>` with `--csv-dir` to add a shared filename prefix.
-Use `--csv-meta` with `--csv-dir` to export one-row batch metadata CSV (`meta.csv`).
-Use `--push <url>` to POST metrics JSON to your collector endpoint (`--push-token` and `--push-timeout-seconds` are optional).
+Monthly projection:
+
+```bash
+python scripts/estimate_savings.py --usage-file .mmdev/reports/model-usage.jsonl --scenario both --cache-hit-ratio 0.0 --monthly-runs 1000 --pretty
+```
+
+## Common Troubleshooting
+
+| Symptom | Likely Cause | Quick Fix |
+|---|---|---|
+| Plan fails before request | Missing strong model key/model | Configure API key and planner/reviewer model |
+| Run fails with git error | Not a git repository | Run `git init` and commit baseline |
+| Run rejected by boundary check | Patch changed files outside `allowed_files` | Narrow task scope and re-plan |
+| Executor config missing | DeepSeek/hosted settings incomplete | Fill `deepseek_*` or `mmdev_gateway_*` fields |
+
+Default DeepSeek executor settings follow the official OpenAI-compatible API:
+
+```toml
+deepseek_base_url = "https://api.deepseek.com"
+deepseek_executor_model = "deepseek-v4-pro"
+```
+
+## CI and Release
+
+- CI: `.github/workflows/tokenpatch-ci.yml`
+- Release: `.github/workflows/release.yml`
+

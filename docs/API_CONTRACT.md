@@ -125,15 +125,11 @@ Without baseline config, baseline cost is `0`, and savings ratios are returned a
 
 ## Change Process (Recommended)
 
-1. Update `gateway/mmdev_gateway/schemas.py` and `gateway/mmdev_gateway/app.py`.
-2. Add or update gateway contract tests in `tests/test_gateway_server.py`.
+1. Update the hosted gateway implementation in the separate tokenpatch.com codebase.
+2. Add or update hosted gateway contract tests in that service repository.
 3. If breaking contract, bump schema version and keep old version in compatibility window.
-4. Update this document and `gateway/README.md` in same change.
+4. Update this public contract and the hosted service documentation in the same change.
 
 ## Consistency Check Script
 
-Run this before release to verify cross-file version consistency:
-
-```bash
-python gateway/scripts/verify_dashboard_contract.py --json
-```
+Run the hosted gateway contract test from the tokenpatch.com service repository before changing this public contract.

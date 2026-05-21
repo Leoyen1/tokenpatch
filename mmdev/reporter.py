@@ -5,9 +5,13 @@ import json
 from pathlib import Path
 
 from mmdev.config import load_config
-from mmdev.cost import estimate_cost
+from mmdev.cost import effective_baseline_rates, estimate_cost
+from mmdev.checkpoint import list_checkpoints
 from mmdev.executor import load_plan
+from mmdev.memory import load_memory
+from mmdev.patch_economics import summarize_patch_economics
 from mmdev.schemas import ReviewResult, ValidationResult
+from mmdev.state import task_statuses
 from mmdev.usage import read_usage
 
 
@@ -30,17 +34,31 @@ def generate_report(mmdev_dir: Path) -> str:
     total_provider_cost = sum(record.provider_cost or 0 for record in usage)
     strong_cost = sum(record.estimated_cost for record in usage if record.purpose in {"plan", "review"})
     cheap_cost = sum(record.estimated_cost for record in usage if record.purpose in {"execute", "repair"})
-    baseline_cost = estimate_cost(
-        total_input,
-        total_output,
+    baseline_input_rate, baseline_output_rate, baseline_uses_default = effective_baseline_rates(
         config.baseline_strong_input_cost_per_million,
         config.baseline_strong_output_cost_per_million,
     )
+    baseline_cost = estimate_cost(
+        total_input,
+        total_output,
+        baseline_input_rate,
+        baseline_output_rate,
+    )
     savings = baseline_cost - total_cost
     savings_ratio = (savings / baseline_cost * 100) if baseline_cost > 0 else 0.0
+    patch_economics = summarize_patch_economics(
+        total_tasks=total_tasks,
+        task_statuses=task_statuses(mmdev_dir),
+        validation_results=validation_results,
+        review_results=review_results,
+        actual_cost=total_cost,
+        baseline_cost=baseline_cost,
+    )
     usage_by_model_purpose = summarize_usage_by_model_purpose(usage)
     strong_route_stats = summarize_strong_route_stats(run_events)
     auto_route_stats = summarize_auto_route_stats(run_events)
+    checkpoints = list_checkpoints(mmdev_dir)
+    memory = load_memory(mmdev_dir)
 
     lines = [
         "# tokenpatch Final Report",
@@ -63,6 +81,40 @@ def generate_report(mmdev_dir: Path) -> str:
         f"- Estimated all-strong baseline cost: {baseline_cost:.6f}",
         f"- Estimated savings vs all-strong: {savings:.6f}",
         f"- Estimated savings ratio: {savings_ratio:.2f}%",
+        "",
+        "## Savings Snapshot",
+        "",
+        f"- tokenpatch actual cost: {total_cost:.6f}",
+        f"- All-strong baseline estimate: {baseline_cost:.6f}",
+        f"- Estimated savings: {savings:.6f}",
+        f"- Estimated savings ratio: {savings_ratio:.2f}%",
+        f"- Cost per applied patch: {patch_economics['cost_per_applied_patch']:.6f}",
+        f"- Savings per applied patch: {patch_economics['savings_per_applied_patch']:.6f}",
+        f"- Savings ratio per applied patch: {patch_economics['savings_ratio_per_applied_patch']:.2f}%",
+        f"- Baseline pricing: {format_baseline_pricing(baseline_input_rate, baseline_output_rate, baseline_uses_default)}",
+        "",
+        "## Patch Economics",
+        "",
+        f"- Generated patches: {patch_economics['generated_patches']}",
+        f"- Applied patches: {patch_economics['applied_patches']}",
+        f"- Accepted patches: {patch_economics['accepted_patches']}",
+        f"- Failed tasks: {patch_economics['failed_tasks']}",
+        f"- Actual cost per applied patch: {patch_economics['cost_per_applied_patch']:.6f}",
+        f"- Actual cost per accepted patch: {patch_economics['cost_per_accepted_patch']:.6f}",
+        f"- All-strong baseline per applied patch: {patch_economics['baseline_cost_per_applied_patch']:.6f}",
+        f"- All-strong baseline per accepted patch: {patch_economics['baseline_cost_per_accepted_patch']:.6f}",
+        f"- Savings per applied patch: {patch_economics['savings_per_applied_patch']:.6f}",
+        f"- Savings ratio per applied patch: {patch_economics['savings_ratio_per_applied_patch']:.2f}%",
+        f"- Savings per accepted patch: {patch_economics['savings_per_accepted_patch']:.6f}",
+        f"- Savings ratio per accepted patch: {patch_economics['savings_ratio_per_accepted_patch']:.2f}%",
+        "",
+        "## Recovery and Context Support",
+        "",
+        f"- Safe Mode restore points: {len(checkpoints)}",
+        f"- Latest restore point: {format_latest_checkpoint(checkpoints)}",
+        f"- Project Memory Pack: {format_memory_status(memory)}",
+        "- Safe Mode reduces wasted strong-model debugging when an AI run goes in the wrong direction.",
+        "- Memory Pack reduces repeated project explanation and repeated failed approaches by injecting a compact local summary.",
         "",
         "## Model Calls",
         "",
@@ -143,6 +195,24 @@ def write_final_report(mmdev_dir: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(generate_report(mmdev_dir), encoding="utf-8")
     return path
+
+
+def format_latest_checkpoint(checkpoints) -> str:
+    if not checkpoints:
+        return "<none>"
+    latest = checkpoints[0]
+    return f"{latest.id} ({latest.label}, {latest.created_at})"
+
+
+def format_memory_status(memory) -> str:
+    if memory is None:
+        return "<missing; run tokenpatch memory refresh>"
+    return f"generated {memory.generated_at}, key_files={len(memory.key_files)}, recent_tasks={len(memory.recent_tasks)}"
+
+
+def format_baseline_pricing(input_rate: float, output_rate: float, uses_default: bool) -> str:
+    source = "default frontier baseline" if uses_default else "configured baseline"
+    return f"{source} (input ${input_rate:.3f}/1M, output ${output_rate:.3f}/1M)"
 
 
 def read_run_events(mmdev_dir: Path) -> list[dict]:

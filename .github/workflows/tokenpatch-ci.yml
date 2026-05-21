@@ -25,10 +25,7 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[test,gateway]"
-
-      - name: Verify Dashboard Contract
-        run: python gateway/scripts/verify_dashboard_contract.py --json
+          python -m pip install -e ".[test,web]"
 
       - name: Run Unit Tests
         run: python -m pytest -q

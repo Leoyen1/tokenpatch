@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 
+DEFAULT_BASELINE_STRONG_INPUT_COST_PER_MILLION = 5.0
+DEFAULT_BASELINE_STRONG_OUTPUT_COST_PER_MILLION = 25.0
+
+
 def estimate_tokens(text: str) -> int:
     if not text:
         return 0
@@ -14,3 +18,8 @@ def estimate_tokens(text: str) -> int:
 def estimate_cost(input_tokens: int, output_tokens: int, input_per_million: float = 0.0, output_per_million: float = 0.0) -> float:
     return ((input_tokens * input_per_million) + (output_tokens * output_per_million)) / 1_000_000
 
+
+def effective_baseline_rates(input_per_million: float, output_per_million: float) -> tuple[float, float, bool]:
+    if input_per_million > 0 or output_per_million > 0:
+        return input_per_million, output_per_million, False
+    return DEFAULT_BASELINE_STRONG_INPUT_COST_PER_MILLION, DEFAULT_BASELINE_STRONG_OUTPUT_COST_PER_MILLION, True

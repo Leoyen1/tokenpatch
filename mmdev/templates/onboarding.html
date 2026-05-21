@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>tokenpatch First Run</title>
+  <style>
+    body { margin: 0; font-family: Inter, Arial, sans-serif; background: #f5f6f8; color: #111827; }
+    .topbar { padding: 14px 20px; background: #111827; color: #fff; display: flex; justify-content: space-between; align-items: center; }
+    .topbar a { color: #93c5fd; text-decoration: none; }
+    .wrap { padding: 16px; display: grid; gap: 16px; max-width: 1040px; margin: 0 auto; }
+    .panel { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px; }
+    h1 { margin: 0 0 8px; font-size: 18px; }
+    h2 { margin: 0 0 10px; font-size: 16px; }
+    .meta { font-size: 13px; color: #4b5563; margin-bottom: 6px; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(180px, 1fr)); gap: 10px; }
+    .kv { border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px; background: #fff; }
+    .kv .k { font-size: 12px; color: #6b7280; }
+    .kv .v { margin-top: 4px; font-size: 14px; font-weight: 700; }
+    .step { border: 1px solid #e5e7eb; border-radius: 6px; padding: 10px; margin-top: 8px; }
+    .step-head { display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+    .step-title { font-size: 14px; font-weight: 700; }
+    .status { font-size: 12px; font-weight: 700; text-transform: uppercase; }
+    .pass { color: #166534; }
+    .warn { color: #92400e; }
+    .fail { color: #b91c1c; }
+    .message, .fix { margin-top: 6px; font-size: 13px; color: #374151; }
+    code { background: #f3f4f6; padding: 2px 4px; border-radius: 4px; }
+    button, .button { display: inline-block; border: 1px solid #1d4ed8; background: #1d4ed8; color: #fff; border-radius: 6px; padding: 8px 12px; cursor: pointer; font-size: 13px; text-decoration: none; }
+    .button.secondary { border-color: #6b7280; background: #fff; color: #111827; }
+    .actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } .topbar { display: block; } }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div><strong>tokenpatch First Run</strong></div>
+    <div><a href="/">Console</a> &nbsp; <a href="/settings">Settings</a></div>
+  </div>
+
+  <div class="wrap">
+    <div class="panel">
+      <h1>First-run checklist</h1>
+      <div class="meta">Workdir: <code>{{ workdir }}</code></div>
+      <div class="meta">Strong provider: <code>{{ strong_provider }}</code></div>
+      <div class="meta">Executor provider: <code>{{ executor_provider }}</code></div>
+      <div class="grid" style="margin-top:10px;">
+        <div class="kv">
+          <div class="k">Ready to plan</div>
+          <div class="v {% if ready_to_plan %}pass{% else %}warn{% endif %}">{{ "yes" if ready_to_plan else "not yet" }}</div>
+        </div>
+        <div class="kv">
+          <div class="k">Ready to run</div>
+          <div class="v {% if ready_to_run %}pass{% else %}warn{% endif %}">{{ "yes" if ready_to_run else "not yet" }}</div>
+        </div>
+      </div>
+      {% if next_action %}
+      <div class="step" style="margin-top:12px;">
+        <div class="step-head">
+          <div class="step-title">Next action: {{ next_action.title }}</div>
+          <div class="status {{ next_action.status }}">{{ next_action.status }}</div>
+        </div>
+        <div class="fix">{{ next_action.fix }}</div>
+      </div>
+      {% endif %}
+      <div class="actions">
+        <a class="button" href="/">Open Console</a>
+        <button class="button secondary" type="button" onclick="location.reload()">Refresh Checks</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Checklist details</h2>
+      {% for step in steps %}
+      <div class="step">
+        <div class="step-head">
+          <div class="step-title">{{ step.title }}</div>
+          <div class="status {{ step.status }}">{{ step.status }}</div>
+        </div>
+        <div class="message">{{ step.message }}</div>
+        {% if step.status != "pass" %}
+        <div class="fix">Fix: {{ step.fix }}</div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</body>
+</html>

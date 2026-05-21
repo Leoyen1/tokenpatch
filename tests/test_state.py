@@ -1,6 +1,15 @@
 from mmdev.config import init_state_dir
 from mmdev.schemas import ExecutionResult, ModelUsage, ProjectPlan, ReviewResult, ValidationResult
-from mmdev.state import connect, record_execution, record_plan, record_review, record_usage, record_validation, task_statuses
+from mmdev.state import (
+    connect,
+    record_execution,
+    record_execution_failure,
+    record_plan,
+    record_review,
+    record_usage,
+    record_validation,
+    task_statuses,
+)
 
 
 def make_plan():
@@ -81,3 +90,16 @@ def test_state_tracks_task_lifecycle_and_usage(tmp_path):
     with connect(mmdev_dir) as conn:
         assert conn.execute("select count(*) from model_usage").fetchone()[0] == 1
 
+
+def test_state_tracks_execution_failure(tmp_path):
+    mmdev_dir = init_state_dir(tmp_path)
+    plan = make_plan()
+    task = plan.tasks[0]
+    record_plan(mmdev_dir, plan)
+
+    record_execution_failure(mmdev_dir, task, "ModelJSONError", "invalid executor JSON")
+
+    assert task_statuses(mmdev_dir)[0]["status"] == "execution-failed"
+    with connect(mmdev_dir) as conn:
+        row = conn.execute("select result_json from executions where task_id=?", ("task-001",)).fetchone()
+    assert "invalid executor JSON" in row["result_json"]

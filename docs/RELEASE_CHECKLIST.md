@@ -14,21 +14,25 @@ This checklist is for publishing tokenpatch releases with repeatable quality and
 From repository root:
 
 ```bash
-python gateway/scripts/verify_dashboard_contract.py --json
 python -m pytest -q
 python -m pytest -q examples/todo-app
+python -m build
 ```
 
 Expected:
 
-- Contract check returns `"ok": true`
 - All tests pass
+- Wheel and sdist build successfully
 
 ## 3) Security and Config Sanity
 
 - Confirm no secrets are committed.
 - Confirm `DEEPSEEK_API_KEY` is never required in open-source CI.
 - Confirm docs still describe open-source vs hosted boundary correctly.
+- Confirm any hosted-credit wording is clearly marked private beta / invite-only
+  until tokenpatch.com and automated payment are live.
+- Confirm `mmdev/prompts/*.md` and `mmdev/templates/*.html` are included in the package.
+- Confirm `tokenpatchweb/` and internal hosted-service docs are not part of the public repository.
 
 ## 4) Tag and Trigger Release Workflow
 
@@ -39,7 +43,6 @@ git push origin v0.1.0
 
 This triggers `.github/workflows/release.yml`:
 
-- contract check
 - tests
 - build sdist/wheel
 - upload artifacts
@@ -62,7 +65,7 @@ tokenpatch --help
 If release pipeline fails:
 
 1. Stop further tag pushes.
-2. Diagnose failure (contract drift, tests, packaging).
+2. Diagnose failure (tests, packaging, documentation, or release config).
 3. Fix in a PR and re-run CI.
 4. Publish a new patch version tag (`vX.Y.Z+1`) instead of mutating old release artifacts.
 

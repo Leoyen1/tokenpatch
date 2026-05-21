@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>tokenpatch Settings</title>
+  <style>
+    body { margin: 0; font-family: Inter, Arial, sans-serif; background: #f5f6f8; color: #111827; }
+    .topbar { padding: 14px 20px; background: #111827; color: #fff; }
+    .topbar a { color: #93c5fd; text-decoration: none; }
+    .wrap { padding: 16px; display: grid; gap: 16px; max-width: 980px; margin: 0 auto; }
+    .panel { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px; }
+    h1 { margin: 0; font-size: 18px; }
+    h2 { margin: 0 0 10px; font-size: 16px; }
+    .row { font-size: 13px; margin-bottom: 6px; }
+    .ok { color: #166534; }
+    .warn { color: #92400e; }
+    .fail { color: #b91c1c; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th, td { border: 1px solid #e5e7eb; padding: 8px; text-align: left; vertical-align: top; }
+    th { background: #f9fafb; }
+    code { background: #f3f4f6; padding: 2px 4px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <a href="/">← Back to Console</a> &nbsp; <a href="/onboarding">First Run</a>
+  </div>
+  <div class="wrap">
+    <div class="panel">
+      <h1>Settings & Config Checks</h1>
+      <div class="row">Workdir: <code>{{ workdir }}</code></div>
+      <div class="row">Strong Provider: <code>{{ strong_provider }}</code></div>
+      <div class="row">Executor Provider: <code>{{ executor_provider }}</code> (recommended first-run: <code>deepseek_byok</code>)</div>
+      <div class="row">Planner Model: <code>{{ planner_model or "<unset>" }}</code></div>
+      <div class="row">Reviewer Model: <code>{{ reviewer_model or "<unset>" }}</code></div>
+      <div class="row">Executor Model: <code>{{ executor_model or "<unset>" }}</code></div>
+      <div class="row">
+        Doctor Overall:
+        {% if doctor_ok %}<span class="ok"><strong>PASS</strong></span>{% else %}<span class="warn"><strong>ATTENTION</strong></span>{% endif %}
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Doctor Checks</h2>
+      <table>
+        <thead>
+          <tr><th>Check</th><th>Status</th><th>Message</th></tr>
+        </thead>
+        <tbody>
+        {% for check in checks %}
+          <tr>
+            <td>{{ check.name }}</td>
+            <td class="{{ check.status }}">{{ check.status }}</td>
+            <td>{{ check.message }}</td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="panel">
+      <h2>Common Fixes</h2>
+      <table>
+        <thead>
+          <tr><th>Symptom</th><th>Likely Cause</th><th>Quick Fix</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Plan fails before request</td>
+            <td>Missing strong model key/model name</td>
+            <td>Set <code>OPENAI_API_KEY</code>/<code>CLAUDE_API_KEY</code> and planner/reviewer model fields</td>
+          </tr>
+          <tr>
+            <td>Run fails with Git error</td>
+            <td>Current directory is not a git repo</td>
+            <td>Run <code>git init</code> and commit baseline before execution</td>
+          </tr>
+          <tr>
+            <td>Run rejected for file boundary</td>
+            <td>Patch changed files outside <code>allowed_files</code></td>
+            <td>Narrow task scope or adjust planner output before retry</td>
+          </tr>
+          <tr>
+            <td>Executor config missing</td>
+            <td>DeepSeek BYOK fields empty</td>
+            <td>Fill <code>DEEPSEEK_API_KEY</code>, <code>DEEPSEEK_BASE_URL</code>, <code>DEEPSEEK_EXECUTOR_MODEL</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</body>
+</html>

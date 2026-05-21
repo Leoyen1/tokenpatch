@@ -45,3 +45,16 @@ def test_build_usage_applies_configured_pricing():
         ),
     )
     assert usage.estimated_cost == pytest.approx(2.0)
+
+
+def test_build_usage_uses_default_deepseek_v4_pro_executor_pricing():
+    usage = build_usage(
+        model="deepseek-v4-pro",
+        prompt="hello",
+        result=CompletionResult(text="world", input_tokens=1_000_000, output_tokens=1_000_000),
+        purpose="execute",
+        started_at=0,
+        config=MMDevConfig(),
+    )
+
+    assert usage.estimated_cost == pytest.approx(1.286 + 2.572)

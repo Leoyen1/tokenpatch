@@ -42,7 +42,7 @@ def test_review_task_uses_validation_and_git_diff(tmp_path, monkeypatch):
     config = MMDevConfig(workdir=tmp_path, openai_reviewer_model="reviewer")
     validation = ValidationResult(task_id="task-001", command_results=[], passed=True)
 
-    def fake_run(args, cwd, text, capture_output, timeout, check):
+    def fake_run(args, cwd, text, capture_output, timeout, check, **kwargs):
         if args[:3] == ["git", "rev-parse", "--is-inside-work-tree"]:
             return subprocess.CompletedProcess(args, 0, "true\n", "")
         if args[:2] == ["git", "diff"]:
@@ -53,4 +53,3 @@ def test_review_task_uses_validation_and_git_diff(tmp_path, monkeypatch):
     result = review_task(make_task(), validation, config, FakeClient())
     assert result.approved is True
     assert result.recommended_next_action == "approve"
-

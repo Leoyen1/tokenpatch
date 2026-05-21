@@ -129,6 +129,23 @@ def test_doctor_gateway_executor_config_and_api(tmp_path):
     assert gateway.calls == 1
 
 
+def test_doctor_reports_executor_provider_reason_and_ignored_config(tmp_path):
+    result = run_doctor(
+        MMDevConfig(
+            workdir=tmp_path,
+            executor_provider="mmdev_gateway",
+            executor_provider_reason="explicit environment executor_provider=mmdev_gateway",
+            mmdev_gateway_url="https://gateway.example.test",
+            mmdev_gateway_token="token",
+            deepseek_api_key="deepseek-key",
+        )
+    )
+
+    message = {check.name: check for check in result.checks}["executor-config"].message
+    assert "explicit environment executor_provider=mmdev_gateway" in message
+    assert "DeepSeek BYOK key is also configured but ignored" in message
+
+
 def test_doctor_supports_claude_strong_model_config_and_api(tmp_path):
     strong = FakeAPIClient()
     result = run_doctor(
