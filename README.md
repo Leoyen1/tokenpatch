@@ -2,6 +2,8 @@
 
 Save AI coding tokens without switching editors.
 
+Official website: [tokenpatch.com](https://tokenpatch.com)
+
 tokenpatch lets Codex, Cursor, Claude Code, CLI agents, and MCP clients keep their configured strong model in charge, then route safe implementation patches to a cheaper executor such as DeepSeek V4 Pro.
 
 The key metric is not just request cost. tokenpatch measures the cost per applied AI coding patch, then tracks accepted patches as the stricter validation/review signal.
