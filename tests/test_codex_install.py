@@ -51,7 +51,8 @@ def test_codex_mcp_snippet_supports_launcher_mode(tmp_path):
     )
 
     assert 'command = "C:\\\\Python314\\\\python.exe"' in snippet
-    assert f'args = ["{str(launcher.resolve()).replace("\\", "\\\\")}"]' in snippet
+    escaped_launcher = str(launcher.resolve()).replace("\\", "\\\\")
+    assert f'args = ["{escaped_launcher}"]' in snippet
     assert "--workdir" not in snippet
     assert "cwd =" not in snippet
 
