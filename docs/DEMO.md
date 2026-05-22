@@ -25,6 +25,8 @@ Tests: passed
 
 ## Savings Snapshot
 
+![tokenpatch report snapshot](assets/report-snapshot.png)
+
 ```text
 All-strong estimate: $0.42
 tokenpatch actual: $0.08
