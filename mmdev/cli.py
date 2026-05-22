@@ -60,6 +60,11 @@ def redact_install_snippet(text: str) -> str:
     return text
 
 
+def fail_with_message(message: str) -> None:
+    typer.echo(message, err=True)
+    raise typer.Exit(code=2)
+
+
 def executor_config_summary(config) -> tuple[str, bool]:
     provider = config.normalized_executor_provider
     if provider == "mmdev_gateway":
@@ -240,7 +245,7 @@ def do_task(
 ) -> None:
     files = allowed_file or []
     if not files:
-        raise typer.BadParameter("at least one --allowed-file is required")
+        fail_with_message("at least one --allowed-file is required")
     config = load_config(workdir)
     init_state_dir(config.workdir)
     doctor_result = run_doctor(config, check_api=False)
@@ -400,11 +405,11 @@ def metrics(
     try:
         payload = build_metrics(config.mmdev_dir, window=window)
     except ValueError as exc:
-        raise typer.BadParameter(str(exc)) from exc
+        fail_with_message(str(exc))
     if csv_prefix is not None and csv_dir is None:
-        raise typer.BadParameter("--csv-prefix requires --csv-dir")
+        fail_with_message("--csv-prefix requires --csv-dir")
     if csv_meta and csv_dir is None:
-        raise typer.BadParameter("--csv-meta requires --csv-dir")
+        fail_with_message("--csv-meta requires --csv-dir")
     if csv_dir is not None:
         for path in write_metrics_csvs(payload, csv_dir, prefix=csv_prefix):
             typer.echo(f"Wrote {path}")
