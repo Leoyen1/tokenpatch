@@ -8,6 +8,43 @@ tokenpatch lets Codex, Cursor, Claude Code, CLI agents, and MCP clients keep the
 
 The key metric is not just request cost. tokenpatch measures the cost per applied AI coding patch, then tracks accepted patches as the stricter validation/review signal.
 
+## Try It In 3 Minutes
+
+First public release is BYOK-first. Bring your own DeepSeek API key for the executor path.
+
+```bash
+pip install git+https://github.com/Leoyen1/tokenpatch.git
+tokenpatch bootstrap
+```
+
+Set your executor key in your app's MCP environment settings, shell, or `~/.tokenpatch/config.toml`:
+
+```text
+MMDEV_EXECUTOR_PROVIDER=deepseek_byok
+DEEPSEEK_API_KEY=your-deepseek-key
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_EXECUTOR_MODEL=deepseek-v4-pro
+```
+
+Then ask inside Codex, Claude Code, Cursor, or another coding agent:
+
+```text
+tp: change the page title. Only modify index.html.
+```
+
+Example report signal:
+
+```text
+Task: change page title, only modify index.html
+All-strong estimate: $0.42
+tokenpatch actual: $0.08
+Saved: 81%
+Patch applied: yes
+Tests: passed
+```
+
+See [demo evidence](docs/DEMO.md), [quickstart](docs/QUICKSTART.md), and [install guide](docs/INSTALL.md).
+
 ## Vision
 
 AI coding should not require every implementation token to run through the most
@@ -62,7 +99,7 @@ executor path. tokenpatch.com hosted credits are planned later for users who
 cannot easily get, recharge, or manage a DeepSeek key directly.
 
 ```bash
-python -m pip install -e ".[test,web]"
+pip install git+https://github.com/Leoyen1/tokenpatch.git
 ```
 
 See [Install Guide](docs/INSTALL.md) for PyPI, source, Codex, Cursor, Claude Code, Windows, and CLI setup.

@@ -17,13 +17,13 @@ background. You do not need to learn them before the first run.
 
 ## 1. Install
 
-For local development from this repository:
+For the first public GitHub release:
 
 ```bash
-python -m pip install -e ".[test,web]"
+pip install git+https://github.com/Leoyen1/tokenpatch.git
 ```
 
-After packaging, the intended user-facing command is:
+After PyPI packaging, the intended shorter command is:
 
 ```bash
 pip install tokenpatch

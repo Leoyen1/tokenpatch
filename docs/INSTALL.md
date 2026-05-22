@@ -13,6 +13,20 @@ This guide covers the practical install paths for early users and local developm
 
 Codex, Cursor, and Claude Code keep using their own strong-model settings. tokenpatch does not need a second GPT or Claude key in App Mode.
 
+## Install From GitHub
+
+Use this for the first public GitHub release:
+
+```bash
+pip install git+https://github.com/Leoyen1/tokenpatch.git
+```
+
+Verify:
+
+```bash
+tokenpatch --help
+```
+
 ## Install From PyPI
 
 After release:
@@ -29,7 +43,7 @@ tokenpatch --help
 
 ## Install From Source
 
-For local development from this repository:
+For local development after cloning this repository:
 
 ```bash
 git clone https://github.com/Leoyen1/tokenpatch
